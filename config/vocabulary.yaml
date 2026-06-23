@@ -1,0 +1,507 @@
+version: "3.1"
+
+normalization:
+  statuses:
+    present: ["present", "positive", "yes", "true", "documented", "reported", "noted", "active"]
+    absent: ["absent", "negative", "no", "false", "denied", "denies", "none", "ruled out", "not present"]
+    not_listed: ["not_listed", "not listed", "not mentioned", "not documented", "unknown", "unclear", "n/a", "na", ""]
+
+negation_scope:
+  triggers: ["denies", "denied", "deny", "no", "without", "without evidence of", "no evidence of", "negative for", "ruled out", "has no", "does not have"]
+  boundary_terms: ["but", "however", "although", "though", "except"]
+  max_scope_characters: 260
+
+number_words:
+  zero: 0
+  one: 1
+  two: 2
+  three: 3
+  four: 4
+  five: 5
+  six: 6
+  seven: 7
+  eight: 8
+  nine: 9
+  ten: 10
+  eleven: 11
+  twelve: 12
+  thirteen: 13
+  fourteen: 14
+  fifteen: 15
+  sixteen: 16
+  seventeen: 17
+  eighteen: 18
+  nineteen: 19
+  twenty: 20
+  thirty: 30
+  forty: 40
+  fifty: 50
+
+extractors:
+  visit_type:
+    type: "categorical"
+    output_field: "visit_type"
+    evidence_field: "visit_type_evidence"
+    overwrite: true
+    priority: ["post_op", "device_programming", "medication_management", "initial_visit", "follow_up"]
+    categories:
+      post_op:
+        terms: ["postoperative follow-up", "postoperative follow up", "post-operative follow-up", "post-operative follow up", "six-month postoperative follow-up", "postoperative visit", "post-op visit", "post op visit", "wound check"]
+      device_programming:
+        terms: ["programming follow-up", "programming follow up", "programming visit", "rns programming", "vns programming", "dbs programming", "device programming", "device interrogation", "stimulation adjustment", "settings were reviewed", "settings were adjusted"]
+      medication_management:
+        terms: ["routine medication management", "medication management follow-up", "medication management follow up", "medication management", "medication adjustment", "dose increase", "dose decrease", "dose reduction", "medication refill"]
+      initial_visit:
+        terms: ["initial visit", "new patient", "initial evaluation"]
+      follow_up:
+        terms: ["routine follow-up", "routine follow up", "follow-up visit", "follow up visit"]
+
+  device_type:
+    type: "categorical"
+    output_field: "device_type"
+    overwrite: true
+    default: "unknown"
+    allow_multiple_as: "multiple"
+    ignore_negated: true
+    priority: ["VNS", "RNS", "DBS"]
+    categories:
+      VNS:
+        terms: ["vns", "vagus nerve stimulation", "vagus nerve stimulator", "vagal nerve stimulation", "vagal nerve stimulator"]
+      RNS:
+        terms: ["rns", "responsive neurostimulation", "responsive neurostimulator", "neuropace", "neurostimulator"]
+      DBS:
+        terms: ["dbs", "deep brain stimulation", "deep brain stimulator"]
+
+  treatment_context:
+    type: "multi_categorical"
+    output_field: "treatment_context"
+    evidence_field: "treatment_context_evidence"
+    overwrite: true
+    ignore_negated: true
+    priority: ["VNS", "RNS", "DBS", "medication", "dietary", "surgical", "other"]
+    preferred_evidence_terms: ["settings were reviewed", "implantation", "levetiracetam", "lacosamide", "cenobamate", "lamotrigine", "antiseizure medication", "antiseizure medications"]
+    categories:
+      VNS:
+        terms: ["vns", "vagus nerve stimulation", "vagus nerve stimulator"]
+      RNS:
+        terms: ["rns", "responsive neurostimulation", "responsive neurostimulator", "neuropace", "neurostimulator"]
+      DBS:
+        terms: ["dbs", "deep brain stimulation", "deep brain stimulator"]
+      medication:
+        terms: ["medication", "medications", "antiseizure medication", "antiseizure medications", "anti-seizure medication", "anti-seizure medications", "seizure medication", "asm", "asms", "aed", "aeds", "levetiracetam", "lacosamide", "cenobamate", "lamotrigine", "oxcarbazepine", "carbamazepine", "topiramate", "zonisamide", "clobazam", "valproate", "divalproex", "phenytoin", "phenobarbital", "brivaracetam", "perampanel"]
+      dietary:
+        terms: ["ketogenic", "keto diet", "modified atkins", "low glycemic", "dietary therapy", "dietary treatment"]
+      surgical:
+        terms: ["resection", "lobectomy", "laser ablation", "litt", "lesionectomy", "hemispherectomy", "corpus callosotomy", "implantation", "surgery"]
+
+  baseline_seizure_frequency:
+    type: "regex_fields"
+    evidence_field: "baseline_seizure_frequency_evidence"
+    preferred_evidence_terms: ["baseline", "before", "prior to", "preoperative", "pre-op", "pre-implant", "daily", "per week", "per month"]
+    sentence_cues: ["prior to", "before", "baseline", "pre-implant", "preimplant", "pre-op", "preoperative", "before implantation", "before surgery", "before treatment", "before the medication change", "experiencing daily seizures", "daily seizures"]
+    patterns:
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:seizures?|events?|episodes?)\\s*(?:per|a|each|every)\\s*day"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_day"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:times|x)\\s*(?:per|a|each|every)?\\s*day"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_day"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:seizures?|events?|episodes?)\\s*(?:per|a|each|every)\\s*week"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_week"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:times|x)\\s*(?:per|a|each|every)?\\s*week"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_week"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:seizures?|events?|episodes?)\\s*(?:per|a|each|every)\\s*month"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_month"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:times|x)\\s*(?:per|a|each|every)?\\s*month"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_month"
+      - regex: "(?P<number>\\d+(?:\\.\\d+)?)\\s*(?:seizures?|events?|episodes?)\\s*(?:per|a|each|every)\\s*year"
+        fields:
+          baseline_seizure_frequency_value: "{number}"
+          baseline_seizure_frequency_unit: "per_year"
+      - regex: "\\bexperiencing daily seizures?\\b|\\bdaily seizures?\\b|\\bseizures? daily\\b"
+        fields:
+          baseline_seizure_frequency_value: "daily"
+          baseline_seizure_frequency_unit: "qualitative"
+      - regex: "\\bfrequent seizures?\\b"
+        fields:
+          baseline_seizure_frequency_value: "frequent"
+          baseline_seizure_frequency_unit: "qualitative"
+      - regex: "\\boccasional seizures?\\b|\\boccasional breakthrough events?\\b"
+        fields:
+          baseline_seizure_frequency_value: "occasional"
+          baseline_seizure_frequency_unit: "qualitative"
+      - regex: "\\brare seizures?\\b"
+        fields:
+          baseline_seizure_frequency_value: "rare"
+          baseline_seizure_frequency_unit: "qualitative"
+
+  seizure_reduction:
+    type: "regex_fields"
+    evidence_field: "seizure_reduction_evidence"
+    preferred_evidence_terms: ["reduction", "reduced", "improved", "substantially improved", "unchanged", "stable", "worsened", "seizure frequency"]
+    sentence_cues: ["seizure", "seizures", "seizure frequency", "events", "breakthrough events", "reduction", "reduced", "decrease", "decreased", "improved", "improvement", "substantially improved", "better", "stable", "unchanged", "worsened", "seizure-free", "seizure free"]
+    patterns:
+      - regex: "At this (?P<timepoint>[^,.]+?follow-up).*?(?P<value>\\d+(?:\\.\\d+)?)\\s*%"
+        fields:
+          seizure_reduction_value: "{value}"
+          seizure_reduction_unit: "percent"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "At this (?P<timepoint>[^,.]+?follow up).*?(?P<value>\\d+(?:\\.\\d+)?)\\s*%"
+        fields:
+          seizure_reduction_value: "{value}"
+          seizure_reduction_unit: "percent"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "(?P<value>\\d+(?:\\.\\d+)?)\\s*%\\s*(?:reduction|decrease|improvement)"
+        fields:
+          seizure_reduction_value: "{value}"
+          seizure_reduction_unit: "percent"
+      - regex: "(?P<value>\\d+(?:\\.\\d+)?)\\s*%"
+        fields:
+          seizure_reduction_value: "{value}"
+          seizure_reduction_unit: "percent"
+      - regex: "(?P<timepoint>Since [^,.]+? ago),?\\s*seizures? are unchanged"
+        fields:
+          seizure_reduction_value: "unchanged"
+          seizure_reduction_unit: "qualitative"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "(?P<timepoint>Since [^,.]+? ago),?\\s*seizure frequency has substantially improved"
+        fields:
+          seizure_reduction_value: "improved"
+          seizure_reduction_unit: "qualitative"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "(?P<timepoint>Since [^,.]+? ago).*?(?:substantially improved|improved|improvement|better|reduction|reduced|decrease|decreased)"
+        fields:
+          seizure_reduction_value: "improved"
+          seizure_reduction_unit: "qualitative"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "(?P<timepoint>Since [^,.]+? ago).*?(?:unchanged|stable|remained stable|no change)"
+        fields:
+          seizure_reduction_value: "unchanged"
+          seizure_reduction_unit: "qualitative"
+          seizure_reduction_timepoint: "{timepoint}"
+      - regex: "seizure frequency has substantially improved|seizure frequency improved|substantially improved|improved|improvement|better|reduction|reduced|decrease|decreased"
+        fields:
+          seizure_reduction_value: "improved"
+          seizure_reduction_unit: "qualitative"
+      - regex: "seizures? are unchanged|unchanged|stable|remained stable|no change"
+        fields:
+          seizure_reduction_value: "unchanged"
+          seizure_reduction_unit: "qualitative"
+      - regex: "worsened|worse|increased|increasing"
+        fields:
+          seizure_reduction_value: "worsened"
+          seizure_reduction_unit: "qualitative"
+      - regex: "seizure-free|seizure free"
+        fields:
+          seizure_reduction_value: "seizure-free"
+          seizure_reduction_unit: "qualitative"
+
+  cog_memory:
+    type: "status"
+    status_field: "cog_memory_status"
+    evidence_field: "cog_memory_evidence"
+    present_terms: ["memory difficulty", "memory problems", "memory loss", "short-term memory", "short term memory", "forgetfulness", "word-finding"]
+    absent_terms: ["denies memory", "denies memory problems", "no memory problems", "no memory concerns"]
+
+  cog_attention:
+    type: "status"
+    status_field: "cog_attention_status"
+    evidence_field: "cog_attention_evidence"
+    present_terms: ["attention problems", "concentration problems", "worsening attention", "worsening concentration", "trouble focusing", "difficulty focusing", "distractibility", "attention and concentration"]
+    absent_terms: ["denies problems with attention", "denies attention", "denies concentration", "no attention problems", "no concentration problems"]
+
+  cog_processing_speed:
+    type: "status"
+    status_field: "cog_processing_speed_status"
+    evidence_field: "cog_processing_speed_evidence"
+    present_terms: ["cognitive slowing", "mental slowing", "slowed thinking", "slow processing", "brain fog"]
+    absent_terms: ["denies cognitive slowing", "no cognitive slowing", "processing speed is unchanged", "processing speed is otherwise unchanged"]
+
+  cog_executive_function:
+    type: "status"
+    status_field: "cog_executive_function_status"
+    evidence_field: "cog_executive_function_evidence"
+    present_terms: ["organizing complex tasks", "difficulty organizing", "trouble organizing", "planning difficulty", "difficulty multitasking", "decision making", "judgment", "executive function problems"]
+    absent_terms: ["denies executive", "no executive", "denies executive function problems"]
+
+  psych_depression:
+    type: "status"
+    status_field: "psych_depression_status"
+    evidence_field: "psych_depression_evidence"
+    present_terms: ["depression", "depressed mood", "worsening depression"]
+    absent_terms: ["denies depression", "no depression"]
+
+  psych_anxiety:
+    type: "status"
+    status_field: "psych_anxiety_status"
+    evidence_field: "psych_anxiety_evidence"
+    present_terms: ["anxiety", "anxious", "anxious symptoms"]
+    absent_terms: ["denies anxiety", "no anxiety"]
+
+  psych_adhd:
+    type: "status"
+    status_field: "psych_adhd_status"
+    evidence_field: "psych_adhd_evidence"
+    present_terms: ["adhd", "attention deficit", "attention-deficit"]
+    absent_terms: ["denies adhd", "no history of adhd"]
+
+  psych_psychosis:
+    type: "status"
+    status_field: "psych_psychosis_status"
+    evidence_field: "psych_psychosis_evidence"
+    present_terms: ["psychosis", "hallucinations", "delusions"]
+    absent_terms: ["denies psychosis", "denies hallucinations", "denies delusions", "no psychosis", "no hallucinations", "no delusions"]
+
+  psych_substance_use_disorder:
+    type: "status"
+    status_field: "psych_substance_use_disorder_status"
+    evidence_field: "psych_substance_use_disorder_evidence"
+    present_terms: ["substance use disorder", "alcohol use disorder", "substance abuse", "alcohol abuse", "substance dependence", "alcohol dependence"]
+    absent_terms: ["denies substance use disorder", "denies alcohol use disorder", "no substance use disorder", "no alcohol use disorder"]
+
+  sudep_generalized_seizures:
+    type: "status"
+    status_field: "sudep_generalized_seizures_status"
+    evidence_field: "sudep_generalized_seizures_evidence"
+    present_terms: ["generalized tonic-clonic", "generalized tonic clonic", "convulsive seizure", "convulsive seizures", "bilateral tonic-clonic", "bilateral tonic clonic", "gtc"]
+    absent_terms: ["denies generalized tonic-clonic", "no generalized tonic-clonic", "no tonic-clonic", "no convulsive"]
+
+  sudep_living_alone:
+    type: "status"
+    status_field: "sudep_living_alone_status"
+    evidence_field: "sudep_living_alone_evidence"
+    present_terms: ["lives alone", "living alone"]
+    absent_terms: ["does not live alone", "lives with", "living with"]
+
+  sudep_seizures_during_sleep:
+    type: "status"
+    status_field: "sudep_seizures_during_sleep_status"
+    evidence_field: "sudep_seizures_during_sleep_evidence"
+    present_terms: ["during sleep", "out of sleep", "nocturnal", "while sleeping"]
+    absent_terms: ["no nocturnal", "no seizures during sleep", "denies seizures during sleep", "denies nocturnal"]
+
+  sudep_longstanding_epilepsy_present:
+    type: "threshold_status"
+    status_field: "sudep_longstanding_epilepsy_status"
+    evidence_field: "sudep_longstanding_epilepsy_evidence"
+    present:
+      sentence_must_contain: ["epilepsy"]
+      comparator: ">="
+      value: 20
+      patterns:
+        - "(?:epilepsy|seizures?)\\s+(?:since|for)\\s+(?:more than\\s+|over\\s+|greater than\\s+)?(?P<number>\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\\s+years?"
+        - "(?:focal epilepsy|drug-resistant epilepsy|refractory epilepsy)\\s+for\\s+(?:more than\\s+|over\\s+|greater than\\s+)?(?P<number>\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty)\\s+years?"
+
+  sudep_longstanding_epilepsy_absent:
+    type: "threshold_status"
+    status_field: "sudep_longstanding_epilepsy_status"
+    evidence_field: "sudep_longstanding_epilepsy_evidence"
+    absent:
+      sentence_must_contain: ["epilepsy"]
+      comparator: "<"
+      value: 20
+      patterns:
+        - "(?:epilepsy|seizures?)\\s+(?:diagnosed|for)\\s+(?:about\\s+|approximately\\s+)?(?P<number>\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\\s+years?"
+        - "epilepsy diagnosed (?P<number>\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\\s+years? ago"
+
+  sudep_longstanding_epilepsy_terms:
+    type: "status"
+    status_field: "sudep_longstanding_epilepsy_status"
+    evidence_field: "sudep_longstanding_epilepsy_evidence"
+    present_terms: ["epilepsy since childhood", "since childhood", "for decades", "longstanding epilepsy", "long-standing epilepsy"]
+    absent_terms: []
+
+  sudep_male:
+    type: "status"
+    status_field: "sudep_male_status"
+    evidence_field: "sudep_male_evidence"
+    present_terms: ["male", "man", "boy"]
+    absent_terms: ["female", "woman", "girl"]
+
+  sudep_medication_nonadherence:
+    type: "status"
+    status_field: "sudep_medication_nonadherence_status"
+    evidence_field: "sudep_medication_nonadherence_evidence"
+    present_terms: ["missed doses", "missing doses", "nonadherent", "non-adherent", "poor adherence", "ran out of medication"]
+    absent_terms: ["no missed doses", "denies missed doses", "excellent medication adherence", "good medication adherence", "adherent"]
+
+  sudep_increasing_seizures:
+    type: "status"
+    status_field: "sudep_increasing_seizures_status"
+    evidence_field: "sudep_increasing_seizures_evidence"
+    present_terms: ["increasing seizure", "increased seizure", "worsening seizure", "more seizures", "seizure frequency increased"]
+    absent_terms: ["not increasing", "stable over", "remained stable", "seizure frequency is stable", "unchanged"]
+
+  sudep_alcohol_or_substance_use:
+    type: "status"
+    status_field: "sudep_alcohol_or_substance_use_status"
+    evidence_field: "sudep_alcohol_or_substance_use_evidence"
+    present_terms: ["alcohol use disorder", "substance use disorder", "alcohol abuse", "substance abuse"]
+    absent_terms: ["denies alcohol use disorder", "denies substance use disorder", "no alcohol use disorder", "no substance use disorder"]
+
+  ae_surgical_site_infection:
+    type: "status"
+    status_field: "ae_surgical_site_infection_status"
+    evidence_field: "ae_surgical_site_infection_evidence"
+    invalid_if_terms: ["has not had epilepsy surgery", "no epilepsy surgery", "has not had surgery", "no postoperative issues because she has not had epilepsy surgery"]
+    present_terms: ["surgical site infection", "wound infection", "incision infection", "infected incision", "infection"]
+    absent_terms: ["no infection", "without infection", "no evidence of infection", "no surgical wound concerns", "clean dry intact without infection", "clean, dry, and intact without infection"]
+
+  ae_postoperative_pain:
+    type: "status"
+    status_field: "ae_postoperative_pain_status"
+    evidence_field: "ae_postoperative_pain_evidence"
+    invalid_if_terms: ["has not had epilepsy surgery", "no epilepsy surgery", "has not had surgery", "no postoperative issues because she has not had epilepsy surgery"]
+    present_terms: ["postoperative pain", "post-op pain", "post op pain", "residual postoperative pain", "postoperative neck pain"]
+    absent_terms: ["no postoperative pain", "no pain complaints", "no postoperative pain complaints"]
+
+  ae_intracranial_hemorrhage:
+    type: "status"
+    status_field: "ae_intracranial_hemorrhage_status"
+    evidence_field: "ae_intracranial_hemorrhage_evidence"
+    invalid_if_terms: ["has not had epilepsy surgery", "no epilepsy surgery", "has not had surgery", "no postoperative issues because she has not had epilepsy surgery"]
+    present_terms: ["intracranial hemorrhage", "intracranial haemorrhage", "brain bleed", "postoperative bleed"]
+    absent_terms: ["no hemorrhage", "no haemorrhage", "no intracranial bleed"]
+
+  ae_wound_complication:
+    type: "status"
+    status_field: "ae_wound_complication_status"
+    evidence_field: "ae_wound_complication_evidence"
+    invalid_if_terms: ["has not had epilepsy surgery", "no epilepsy surgery", "has not had surgery", "no postoperative issues because she has not had epilepsy surgery"]
+    present_terms: ["wound complication", "wound dehiscence", "wound drainage", "wound breakdown", "drainage", "dehiscence"]
+    absent_terms: ["no wound concerns", "without drainage", "without dehiscence", "no drainage", "no dehiscence", "no wound complication", "clean, dry, and intact without infection, drainage, dehiscence, or other wound complication"]
+
+  ae_device_malfunction:
+    type: "status"
+    status_field: "ae_device_malfunction_status"
+    evidence_field: "ae_device_malfunction_evidence"
+    present_terms: ["device malfunction", "device failure", "hardware malfunction", "device stopped working", "other hardware malfunction"]
+    absent_terms: ["device is functioning normally", "functioning appropriately", "without evidence of hardware malfunction", "without hardware malfunction"]
+
+  ae_lead_migration:
+    type: "status"
+    status_field: "ae_lead_migration_status"
+    evidence_field: "ae_lead_migration_evidence"
+    present_terms: ["lead migration", "migrated lead"]
+    absent_terms: ["no evidence of lead migration", "without evidence of lead migration"]
+
+  ae_lead_fracture:
+    type: "status"
+    status_field: "ae_lead_fracture_status"
+    evidence_field: "ae_lead_fracture_evidence"
+    present_terms: ["lead fracture", "fractured lead"]
+    absent_terms: ["no evidence of lead fracture", "without evidence of lead fracture"]
+
+  ae_battery_depletion:
+    type: "status"
+    status_field: "ae_battery_depletion_status"
+    evidence_field: "ae_battery_depletion_evidence"
+    present_terms: ["battery depletion", "depleted battery", "low battery"]
+    absent_terms: ["no evidence of battery depletion", "without evidence of battery depletion"]
+
+  ae_stimulation_paresthesia:
+    type: "status"
+    status_field: "ae_stimulation_paresthesia_status"
+    evidence_field: "ae_stimulation_paresthesia_evidence"
+    present_terms: ["tingling", "paresthesia", "numbness", "tingling sensations"]
+    absent_terms: ["denies tingling", "denies paresthesia", "denies numbness", "no tingling"]
+
+  ae_speech_disturbance:
+    type: "status"
+    status_field: "ae_speech_disturbance_status"
+    evidence_field: "ae_speech_disturbance_evidence"
+    present_terms:
+      - "hoarseness"
+      - "voice change"
+      - "voice changes"
+      - "dysphonia"
+      - "speech disturbance"
+      - "speech difficulty"
+      - "difficulty speaking"
+    absent_terms:
+      - "denies hoarseness"
+      - "denies voice change"
+      - "denies voice changes"
+      - "denies dysphonia"
+      - "denies speech disturbance"
+      - "denies speech difficulty"
+      - "no hoarseness"
+      - "no voice change"
+      - "no voice changes"
+      - "no dysphonia"
+      - "no speech disturbance"
+      - "no speech difficulty"
+
+  ae_sleep_disruption:
+    type: "status"
+    status_field: "ae_sleep_disruption_status"
+    evidence_field: "ae_sleep_disruption_evidence"
+    present_terms: ["sleep disruption from stimulation", "sleep disruption", "wakes from stimulation"]
+    absent_terms: ["denies sleep disruption", "no sleep disruption", "does not affect sleep"]
+
+  ae_stimulation_discomfort:
+    type: "status"
+    status_field: "ae_stimulation_discomfort_status"
+    evidence_field: "ae_stimulation_discomfort_evidence"
+    present_terms: ["painful stimulation", "stimulation discomfort", "discomfort with stimulation"]
+    absent_terms: ["denies painful stimulation", "denies stimulation discomfort", "no painful stimulation", "no discomfort with stimulation"]
+
+  ae_dizziness:
+    type: "status"
+    status_field: "ae_dizziness_status"
+    evidence_field: "ae_dizziness_evidence"
+    present_terms: ["dizziness", "dizzy", "lightheaded"]
+    absent_terms: ["denies dizziness", "no dizziness"]
+
+  ae_fatigue:
+    type: "status"
+    status_field: "ae_fatigue_status"
+    evidence_field: "ae_fatigue_evidence"
+    present_terms: ["fatigue", "fatigued", "tiredness", "somnolence", "daytime fatigue"]
+    absent_terms: ["denies fatigue", "no fatigue"]
+
+  ae_rash:
+    type: "status"
+    status_field: "ae_rash_status"
+    evidence_field: "ae_rash_evidence"
+    present_terms: ["rash", "hives", "urticaria"]
+    absent_terms: ["denies rash", "no rash"]
+
+  ae_cognitive_slowing:
+    type: "status"
+    status_field: "ae_cognitive_slowing_status"
+    evidence_field: "ae_cognitive_slowing_evidence"
+    present_terms: ["cognitive slowing", "mental slowing", "slowed thinking", "brain fog"]
+    absent_terms: ["denies cognitive slowing", "no cognitive slowing"]
+
+  ae_medication_toxicity:
+    type: "status"
+    status_field: "ae_medication_toxicity_status"
+    evidence_field: "ae_medication_toxicity_evidence"
+    present_terms: ["medication toxicity", "drug toxicity", "toxic level", "supratherapeutic"]
+    absent_terms: ["denies medication toxicity", "no medication toxicity", "no evidence of toxicity"]
+
+  context_cleanup_no_epilepsy_surgery:
+    type: "regex_fields"
+    sentence_cues: ["has not had epilepsy surgery", "no epilepsy surgery", "has not had surgery"]
+    patterns:
+      - regex: "has not had epilepsy surgery|no epilepsy surgery|has not had surgery"
+        fields:
+          ae_surgical_site_infection_status: "not_listed"
+          ae_surgical_site_infection_evidence: ""
+          ae_postoperative_pain_status: "not_listed"
+          ae_postoperative_pain_evidence: ""
+          ae_intracranial_hemorrhage_status: "not_listed"
+          ae_intracranial_hemorrhage_evidence: ""
+          ae_wound_complication_status: "not_listed"
+          ae_wound_complication_evidence: ""

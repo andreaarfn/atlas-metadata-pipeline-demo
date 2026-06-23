@@ -1,0 +1,118 @@
+version: "1.0"
+
+# Ollama model settings.
+ollama:
+  base_url: "http://localhost:11434"
+  endpoint: "/api/generate"
+  model: "llama3.1:8b"
+  temperature: 0
+  stream: false
+  format: "json"
+  num_predict: 4096
+  num_ctx: 8192
+  timeout_seconds: 180
+  max_retries: 1
+
+# Input office-note settings.
+input:
+  folder: "data/input_notes"
+  file_extension: ".txt"
+  encoding: "utf-8"
+  max_note_characters: 12000
+  truncation_strategy: "head_and_tail"
+  head_characters: 6000
+  tail_characters: 6000
+
+# Locations of the other pipeline configuration files.
+files:
+  prompt_file: "config/prompt.txt"
+  vocabulary_file: "config/vocabulary.yaml"
+  csv_columns_file: "config/csv_columns.json"
+
+# CSV output settings.
+output:
+  folder: "data/output_csv"
+  filename: "extractions.csv"
+  encoding: "utf-8"
+  csv_delimiter: ","
+  multi_value_separator: ", "
+  evidence_separator: ", "
+  csv_quoting: "minimal"
+  overwrite_existing_csv: true
+
+# Allowed normalized values for extracted fields.
+validation:
+  allowed_statuses:
+    - present
+    - absent
+    - not_listed
+
+  allowed_visit_types:
+    - initial_visit
+    - follow_up
+    - post_op
+    - device_programming
+    - medication_management
+    - other
+
+  allowed_treatment_contexts:
+    - VNS
+    - RNS
+    - DBS
+    - medication
+    - dietary
+    - surgical
+    - other
+
+  allowed_frequency_units:
+    - per_day
+    - per_week
+    - per_month
+    - per_year
+    - qualitative
+
+  allowed_reduction_units:
+    - percent
+    - qualitative
+
+  allowed_device_types:
+    - VNS
+    - RNS
+    - DBS
+    - multiple
+    - unknown
+
+  default_status: "not_listed"
+  default_evidence: ""
+  default_value: ""
+
+# Prompt-building settings.
+prompt:
+  include_vocabulary: true
+  include_csv_template: true
+  require_json_only: true
+  require_exact_evidence: true
+  max_vocabulary_characters: 18000
+
+# Logging settings.
+logging:
+  folder: "logs"
+  log_level: "INFO"
+  save_raw_model_response: true
+  raw_response_folder: "logs/raw_responses"
+  save_failed_notes: true
+  failed_notes_file: "logs/failed_notes.log"
+  save_pipeline_errors: true
+  error_file: "logs/pipeline_errors.log"
+
+# Rules that keep the pipeline running if one note fails.
+failure_handling:
+  continue_on_invalid_json: true
+  fill_missing_columns: true
+  write_default_row_on_failure: true
+
+# Batch-processing settings.
+batch:
+  process_one_note_at_a_time: true
+  batch_size: 1
+  skip_existing_note_ids: false

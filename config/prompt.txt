@@ -1,0 +1,345 @@
+You are extracting structured epilepsy outcomes from a single clinical office note.
+
+Return exactly one valid JSON object.
+
+IMPORTANT:
+
+- Return only JSON.
+- Do not return markdown.
+- Do not return explanations.
+- Do not return a clinical summary.
+- Do not add fields.
+- Do not remove fields.
+- Use only the field names shown in the template.
+- Use only information explicitly documented in the note.
+
+For every *_status field use exactly one of:
+
+- present
+- absent
+- not_listed
+
+Definitions:
+
+- present = explicitly documented for the patient
+- absent = explicitly denied, ruled out, or stated not present
+- not_listed = not mentioned
+
+Never infer findings.
+
+Do not use family history.
+
+Do not use hypothetical, planned, possible, or uncertain findings.
+
+A single sentence may support multiple fields.
+
+Evidence rules:
+
+- Evidence must be copied exactly from the note.
+- Evidence must be a complete sentence from the note whenever possible.
+- Do not paraphrase.
+- Do not shorten sentences.
+- Do not return sentence fragments.
+- If absent, use the exact denial sentence.
+- If not_listed, use an empty string.
+- One sentence may be reused for multiple fields.
+
+Good evidence:
+
+"Since RNS implantation two years ago, seizure frequency has substantially improved."
+
+Bad evidence:
+
+"seizure frequency has substantially improved"
+
+Numeric and qualitative seizure frequency rules:
+
+Baseline seizure frequency may be numeric or qualitative.
+
+If a baseline seizure frequency contains a number:
+
+"12 seizures per month"
+
+Extract:
+
+baseline_seizure_frequency_value = "12"
+baseline_seizure_frequency_unit = "per_month"
+
+If a baseline seizure frequency is qualitative:
+
+"Prior to RNS implantation, she was experiencing daily seizures."
+
+Extract:
+
+baseline_seizure_frequency_value = "daily"
+baseline_seizure_frequency_unit = "qualitative"
+
+Other qualitative baseline values include:
+
+- daily
+- frequent
+- occasional
+- rare
+
+Do not leave baseline seizure frequency blank if a numeric or qualitative baseline frequency is explicitly documented.
+
+Do not mark an adverse event as absent unless the note explicitly denies that specific event or states it is not present.
+
+If the note does not mention a specific adverse event, use not_listed.
+
+Do not infer absence from silence.
+
+Example:
+
+If the note says "She denies tingling, painful stimulation, or sleep disruption from stimulation,"
+then:
+ae_stimulation_paresthesia_status = absent
+ae_stimulation_discomfort_status = absent
+ae_sleep_disruption_status = absent
+ae_speech_disturbance_status = not_listed
+
+Seizure outcome rules:
+
+Seizure outcomes may be numeric or qualitative.
+
+If a seizure outcome contains a percentage:
+
+"50% reduction in seizure frequency"
+
+Extract:
+
+seizure_reduction_value = "50"
+seizure_reduction_unit = "percent"
+
+If the note says seizure frequency improved, substantially improved, better, reduced, or decreased:
+
+seizure_reduction_value = "improved"
+seizure_reduction_unit = "qualitative"
+
+If the note says seizures are unchanged, stable, remained stable, or no change:
+
+seizure_reduction_value = "unchanged"
+seizure_reduction_unit = "qualitative"
+
+If the note says seizures worsened, increased, or became more frequent:
+
+seizure_reduction_value = "worsened"
+seizure_reduction_unit = "qualitative"
+
+If the note says seizure-free or seizure free:
+
+seizure_reduction_value = "seizure-free"
+seizure_reduction_unit = "qualitative"
+
+Examples:
+
+"Since RNS implantation two years ago, seizure frequency has substantially improved."
+
+Extract:
+
+seizure_reduction_value = "improved"
+seizure_reduction_unit = "qualitative"
+seizure_reduction_timepoint = "two years ago"
+seizure_reduction_evidence = "Since RNS implantation two years ago, seizure frequency has substantially improved."
+
+Example:
+
+"Since increasing lamotrigine three months ago, seizures are unchanged."
+
+Extract:
+
+seizure_reduction_value = "unchanged"
+seizure_reduction_unit = "qualitative"
+seizure_reduction_timepoint = "three months ago"
+seizure_reduction_evidence = "Since increasing lamotrigine three months ago, seizures are unchanged."
+
+Do not leave seizure outcome fields blank if a numeric or qualitative seizure outcome is explicitly documented.
+
+Visit type rules:
+
+Prefer:
+
+- post_op for postoperative follow-up
+- device_programming for VNS/RNS/DBS programming visits
+- medication_management for medication-adjustment visits
+- follow_up for routine follow-up visits
+- initial_visit for new patient visits
+
+Treatment context rules:
+
+Return treatment_context as a comma-separated string using only these values:
+
+- VNS
+- RNS
+- DBS
+- medication
+- dietary
+- surgical
+- other
+
+Examples:
+
+- VNS implantation or VNS settings reviewed = VNS
+- RNS implantation or RNS programming = RNS
+- DBS implantation or DBS programming = DBS
+- levetiracetam, lacosamide, ASMs, AEDs, or medication regimen = medication
+- ketogenic diet or modified Atkins diet = dietary
+
+If both VNS and medications are documented, return:
+
+"VNS, medication"
+
+Device type rules:
+
+Return only:
+
+- VNS
+- RNS
+- DBS
+- multiple
+- unknown
+
+If the note mentions only VNS, device_type must be VNS.
+Do not return multiple unless two or more of VNS, RNS, and DBS are explicitly documented.
+
+Cognitive rules:
+
+- memory difficulty, short-term memory difficulty, forgetfulness, or word-finding difficulty = cog_memory_status present
+- denies memory problems = cog_memory_status absent
+- attention problems, concentration problems, worsening attention, or worsening concentration = cog_attention_status present
+- denies attention problems or concentration problems = cog_attention_status absent
+- cognitive slowing, mental slowing, slowed thinking, or brain fog = cog_processing_speed_status present
+- denies cognitive slowing = cog_processing_speed_status absent
+- processing speed is unchanged = cog_processing_speed_status absent
+- planning, organization, multitasking, judgment, or decision-making problems = cog_executive_function_status present
+- denies executive function problems = cog_executive_function_status absent
+
+Psychiatric rules:
+
+- depression, depressed mood, or worsening depression = psych_depression_status present
+- denies depression = psych_depression_status absent
+- anxiety or anxious symptoms documented = psych_anxiety_status present
+- denies anxiety = psych_anxiety_status absent
+- ADHD is present only if explicitly documented
+- denies ADHD = psych_adhd_status absent
+- psychosis, hallucinations, or delusions = psych_psychosis_status present
+- denies psychosis, hallucinations, or delusions = psych_psychosis_status absent
+- alcohol use disorder or substance use disorder = psych_substance_use_disorder_status present
+- denies alcohol use disorder or substance use disorder = psych_substance_use_disorder_status absent
+
+SUDEP risk-factor rules:
+
+- generalized tonic-clonic seizures, convulsive seizures, or bilateral tonic-clonic seizures = sudep_generalized_seizures_status present
+- denies generalized tonic-clonic seizures = sudep_generalized_seizures_status absent
+- lives alone = sudep_living_alone_status present
+- does not live alone or lives with someone = sudep_living_alone_status absent
+- seizures out of sleep, nocturnal seizures, or seizures during sleep = sudep_seizures_during_sleep_status present
+- denies seizures during sleep = sudep_seizures_during_sleep_status absent
+- epilepsy since childhood, epilepsy for decades, or epilepsy for more than 20 years = sudep_longstanding_epilepsy_status present
+- male, man, or boy documented for the patient = sudep_male_status present
+- female, woman, or girl documented for the patient = sudep_male_status absent
+- missed doses or medication nonadherence = sudep_medication_nonadherence_status present
+- no missed doses, denies missed doses, or excellent medication adherence = sudep_medication_nonadherence_status absent
+- increasing seizure frequency = sudep_increasing_seizures_status present
+- seizure frequency is not increasing, stable, or unchanged = sudep_increasing_seizures_status absent
+- alcohol use disorder or substance use disorder = sudep_alcohol_or_substance_use_status present
+- denies alcohol use disorder or substance use disorder = sudep_alcohol_or_substance_use_status absent
+
+Surgical adverse event rules:
+
+- postoperative pain, post-op pain, or residual postoperative pain = ae_postoperative_pain_status present
+- no postoperative pain complaints = ae_postoperative_pain_status absent
+- surgical site infection, wound infection, or incision infection = ae_surgical_site_infection_status present
+- no infection, without infection, no evidence of infection, or clean dry intact incision = ae_surgical_site_infection_status absent
+- wound complication, drainage, dehiscence, or wound breakdown = ae_wound_complication_status present
+- no drainage, no dehiscence, no wound concerns, or no wound complication = ae_wound_complication_status absent
+- intracranial hemorrhage or postoperative bleed = ae_intracranial_hemorrhage_status present
+- no hemorrhage or no intracranial bleed = ae_intracranial_hemorrhage_status absent
+- If the note states the patient has not had epilepsy surgery, surgical adverse event fields should be not_listed unless a surgical adverse event is explicitly documented.
+
+Device adverse event rules:
+
+- device malfunction, hardware malfunction, or device failure = ae_device_malfunction_status present
+- device functioning normally or functioning appropriately = ae_device_malfunction_status absent
+- no evidence of lead migration = ae_lead_migration_status absent
+- no evidence of lead fracture = ae_lead_fracture_status absent
+- no evidence of battery depletion = ae_battery_depletion_status absent
+- tingling, paresthesia, or numbness after stimulation = ae_stimulation_paresthesia_status present
+- denies tingling from stimulation = ae_stimulation_paresthesia_status absent
+- hoarseness, voice change, dysphonia, or speech disturbance during stimulation = ae_speech_disturbance_status present
+- denies hoarseness or voice changes = ae_speech_disturbance_status absent
+- sleep disruption from stimulation = ae_sleep_disruption_status present
+- denies sleep disruption from stimulation = ae_sleep_disruption_status absent
+- painful stimulation or stimulation discomfort = ae_stimulation_discomfort_status present
+- denies painful stimulation = ae_stimulation_discomfort_status absent
+
+Medication adverse event rules:
+
+- dizziness or lightheadedness = ae_dizziness_status present
+- denies dizziness = ae_dizziness_status absent
+- fatigue, tiredness, somnolence, or daytime fatigue = ae_fatigue_status present
+- fatigue after a medication increase = ae_fatigue_status present
+- denies fatigue = ae_fatigue_status absent
+- rash, hives, or urticaria = ae_rash_status present
+- denies rash = ae_rash_status absent
+- cognitive slowing, mental slowing, slowed thinking, or brain fog = ae_cognitive_slowing_status present
+- denies cognitive slowing = ae_cognitive_slowing_status absent
+- medication toxicity, drug toxicity, toxic level, or supratherapeutic level = ae_medication_toxicity_status present
+- denies medication toxicity = ae_medication_toxicity_status absent
+
+Examples:
+
+"He reports memory difficulty but denies problems with attention or concentration."
+
+Extract:
+
+cog_memory_status = present
+cog_attention_status = absent
+
+Use the same sentence as evidence for both.
+
+Example:
+
+"He denies dizziness, rash, and cognitive slowing."
+
+Extract:
+
+ae_dizziness_status = absent
+ae_rash_status = absent
+ae_cognitive_slowing_status = absent
+
+Use the same sentence as evidence for all three fields.
+
+Example:
+
+"The device is functioning normally, with no evidence of lead migration, lead fracture, or battery depletion."
+
+Extract:
+
+ae_device_malfunction_status = absent
+ae_lead_migration_status = absent
+ae_lead_fracture_status = absent
+ae_battery_depletion_status = absent
+
+Use the same sentence as evidence for all four fields.
+
+Final check before returning JSON:
+
+1. Check every sentence for more than one finding.
+2. Check every comma-separated list.
+3. Check every sentence containing "denies".
+4. Check every sentence containing "without".
+5. Check every sentence containing "no evidence of".
+6. Extract all explicit numbers.
+7. Re-scan the note for baseline seizure frequency.
+8. Re-scan the note for seizure outcomes.
+9. Re-scan the note for qualitative seizure descriptions such as daily, rare, frequent, occasional, improved, unchanged, stable, worsened, or seizure-free.
+10. Return exactly one JSON object using the required schema.
+
+Required output schema:
+
+{{CSV_COLUMNS_TEMPLATE}}
+
+Office note:
+
+{{NOTE_TEXT}}

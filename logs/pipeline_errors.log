@@ -1,0 +1,35 @@
+2026-06-23 12:53:00,569 | ERROR | Failed note_id=med_mgmt_note_003
+Traceback (most recent call last):
+  File "/Users/arifi020/Documents/MockPipelines/OfficeNotesPipeline/scripts/main.py", line 264, in main
+    extraction = extract_note(
+        note_text=note_text,
+    ...<4 lines>...
+        csv_columns=csv_columns,
+    )
+  File "/Users/arifi020/Documents/MockPipelines/OfficeNotesPipeline/scripts/extract.py", line 246, in extract_note
+    raise RuntimeError(
+        f"Extraction failed for note_id={note_id}: {last_error}"
+    )
+RuntimeError: Extraction failed for note_id=med_mgmt_note_003: Could not connect to Ollama at http://localhost:11434/api/generate: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=180)
+2026-06-23 12:59:22,708 | ERROR | Failed note_id=patient_visit_2026_02_02
+Traceback (most recent call last):
+  File "/Users/arifi020/Documents/MockPipelines/OfficeNotesPipeline/scripts/main.py", line 264, in main
+    extraction = extract_note(
+        note_text=note_text,
+    ...<4 lines>...
+        csv_columns=csv_columns,
+    )
+  File "/Users/arifi020/Documents/MockPipelines/OfficeNotesPipeline/scripts/extract.py", line 246, in extract_note
+    raise RuntimeError(
+        f"Extraction failed for note_id={note_id}: {last_error}"
+    )
+RuntimeError: Extraction failed for note_id=patient_visit_2026_02_02: Could not connect to Ollama at http://localhost:11434/api/generate: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=180)
+2026-06-23 13:42:36,805 | WARNING | Unknown extractor type 'frequency' for extractor 'baseline_seizure_frequency'.
+2026-06-23 13:42:36,805 | WARNING | Unknown extractor type 'outcome' for extractor 'seizure_reduction'.
+2026-06-23 13:43:26,620 | WARNING | Unknown extractor type 'frequency' for extractor 'baseline_seizure_frequency'.
+2026-06-23 13:43:26,621 | WARNING | Unknown extractor type 'outcome' for extractor 'seizure_reduction'.
+2026-06-23 13:44:28,528 | WARNING | Unknown extractor type 'frequency' for extractor 'baseline_seizure_frequency'.
+2026-06-23 13:44:28,529 | WARNING | Unknown extractor type 'outcome' for extractor 'seizure_reduction'.
+2026-06-23 15:28:27,168 | INFO | Blank fields after validation for note_id=med_mgmt_note_003: ae_surgical_site_infection_evidence, ae_postoperative_pain_evidence, ae_intracranial_hemorrhage_evidence, ae_wound_complication_evidence, ae_device_malfunction_evidence, ae_lead_migration_evidence, ae_lead_fracture_evidence, ae_battery_depletion_evidence, ae_stimulation_paresthesia_evidence, ae_speech_disturbance_evidence, ae_sleep_disruption_evidence, ae_stimulation_discomfort_evidence
+2026-06-23 15:29:23,594 | INFO | Blank fields after validation for note_id=patient_visit_2026_02_02: sudep_generalized_seizures_evidence, ae_intracranial_hemorrhage_evidence, ae_speech_disturbance_evidence
+2026-06-23 15:30:27,580 | INFO | Blank fields after validation for note_id=test_note_001: cog_executive_function_evidence, psych_adhd_evidence, ae_intracranial_hemorrhage_evidence, ae_medication_toxicity_evidence

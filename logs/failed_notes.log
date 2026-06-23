@@ -1,0 +1,2 @@
+med_mgmt_note_003 | Extraction failed for note_id=med_mgmt_note_003: Could not connect to Ollama at http://localhost:11434/api/generate: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=180)
+patient_visit_2026_02_02 | Extraction failed for note_id=patient_visit_2026_02_02: Could not connect to Ollama at http://localhost:11434/api/generate: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=180)
