@@ -105,11 +105,7 @@ def get_negated_spans(sentence, vocabulary):
     lower_sentence = clean_text(sentence_string)
 
     trigger_patterns = sorted(
-        [
-            re.escape(str(trigger).lower())
-            for trigger in triggers
-            if str(trigger).strip()
-        ],
+        [re.escape(str(trigger).lower()) for trigger in triggers if str(trigger).strip()],
         key=len,
         reverse=True,
     )
@@ -162,9 +158,7 @@ def sentence_meets_candidate_rules(sentence, rules):
     must_contain = rules.get("sentence_must_contain", [])
     cues = rules.get("sentence_cues", [])
 
-    if must_contain and not all(
-        contains_term(sentence, term) for term in must_contain
-    ):
+    if must_contain and not all(contains_term(sentence, term) for term in must_contain):
         return False
 
     if cues and not any(contains_term(sentence, cue) for cue in cues):
@@ -279,11 +273,7 @@ def apply_categorical_extractor(validated, note_text, extractor, vocabulary, set
     if not overwrite and validated.get(output_field):
         return
 
-    matches, evidence_by_category = find_category_matches(
-        note_text,
-        extractor,
-        vocabulary,
-    )
+    matches, evidence_by_category = find_category_matches(note_text, extractor, vocabulary)
 
     if not matches:
         if default:
@@ -321,11 +311,7 @@ def apply_multi_categorical_extractor(validated, note_text, extractor, vocabular
     if not overwrite and validated.get(output_field):
         return
 
-    matches, evidence_by_category = find_category_matches(
-        note_text,
-        extractor,
-        vocabulary,
-    )
+    matches, evidence_by_category = find_category_matches(note_text, extractor, vocabulary)
 
     priority = extractor.get("priority", [])
     if priority:
@@ -348,15 +334,11 @@ def apply_multi_categorical_extractor(validated, note_text, extractor, vocabular
 
 def get_regex_candidate_pool(validated, note_text, extractor):
     evidence_field = extractor.get("evidence_field")
-
     candidates = candidate_sentences(note_text, extractor)
-
     fallback_sentences = []
 
     if evidence_field:
-        fallback_sentences.extend(
-            normalize_evidence(validated.get(evidence_field, ""))
-        )
+        fallback_sentences.extend(normalize_evidence(validated.get(evidence_field, "")))
 
     fallback_sentences.extend(split_sentences(note_text))
 
@@ -546,6 +528,376 @@ def apply_extractors(validated, note_text, vocabulary, settings):
         handler(validated, note_text, extractor, vocabulary, settings)
 
 
+def split_table_line(line, table_config):
+    delimiters = table_config.get("delimiters", ["|", "\t", "multi_space"])
+
+    if "|" in delimiters and "|" in line:
+        cells = [cell.strip() for cell in line.split("|")]
+    elif "\t" in delimiters and "\t" in line:
+        cells = [cell.strip() for cell in line.split("\t")]
+    elif "multi_space" in delimiters:
+        cells = [cell.strip() for cell in re.split(r"\s{2,}", line.strip())]
+    else:
+        cells = [line.strip()]
+
+    return [cell for cell in cells if cell]
+
+
+def is_separator_row(cells):
+    if not cells:
+        return False
+
+    joined = "".join(cells).strip()
+    return bool(re.fullmatch(r"[-_=|:\s]+", joined))
+
+
+def parse_generic_tables(note_text, vocabulary):
+    table_config = vocabulary.get("table_parsing", {}) or {}
+
+    if not table_config.get("enabled", False):
+        return []
+
+    minimum_columns = int(table_config.get("minimum_columns", 2))
+    minimum_rows = int(table_config.get("minimum_rows", 1))
+    ignore_separator_rows = table_config.get("ignore_separator_rows", True)
+
+    lines = str(note_text or "").splitlines()
+    tables = []
+    current_rows = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not stripped:
+            if current_rows:
+                tables.append(current_rows)
+                current_rows = []
+            continue
+
+        cells = split_table_line(stripped, table_config)
+
+        if len(cells) < minimum_columns:
+            if current_rows:
+                tables.append(current_rows)
+                current_rows = []
+            continue
+
+        if ignore_separator_rows and is_separator_row(cells):
+            continue
+
+        current_rows.append(
+            {
+                "cells": cells,
+                "raw": stripped,
+            }
+        )
+
+    if current_rows:
+        tables.append(current_rows)
+
+    parsed_tables = []
+
+    for table_rows in tables:
+        if len(table_rows) < minimum_rows + 1:
+            continue
+
+        headers = table_rows[0]["cells"]
+        rows = table_rows[1:]
+
+        parsed_tables.append(
+            {
+                "headers": headers,
+                "rows": rows,
+                "raw": "\n".join(row["raw"] for row in table_rows),
+            }
+        )
+
+    return parsed_tables
+
+
+def normalized_alias_map(mapping):
+    output = {}
+
+    for canonical, aliases in (mapping or {}).items():
+        output[clean_text(canonical)] = canonical
+        for alias in aliases or []:
+            output[clean_text(alias)] = canonical
+
+    return output
+
+
+def find_mapped_value(value, mapping):
+    alias_map = normalized_alias_map(mapping)
+    return alias_map.get(clean_text(value))
+
+
+def section_cues_present(note_text, extractor):
+    cues = extractor.get("section_cues", [])
+
+    if not cues:
+        return True
+
+    lower_text = clean_text(note_text)
+    return any(clean_text(cue) in lower_text for cue in cues)
+
+
+def get_mapped_column_type(header, column_mappings):
+    for column_type, aliases in (column_mappings or {}).items():
+        values = [column_type] + list(aliases or [])
+        if clean_text(header) in [clean_text(value) for value in values]:
+            return column_type
+
+    return None
+
+
+def get_row_domain(row_label, row_mappings):
+    return find_mapped_value(row_label, row_mappings)
+
+
+def is_numeric_cell(value):
+    return re.fullmatch(r"-?\d+(?:\.\d+)?", str(value).strip()) is not None
+
+
+def assign_table_fields(validated, domain, value_type, value, extractor):
+    prefix = extractor.get("output_prefixes", {}).get(domain, domain)
+    assignments = extractor.get("assignments", {})
+
+    context = {
+        "prefix": prefix,
+        "domain": domain,
+        "value_type": value_type,
+        "value": str(value).strip(),
+    }
+
+    for field_template, value_template in assignments.items():
+        field_name = field_template.format(**context)
+        field_value = value_template.format(**context)
+
+        if field_name in validated:
+            validated[field_name] = field_value
+
+
+def apply_table_fields_extractor(validated, note_text, tables, extractor, vocabulary):
+    if not section_cues_present(note_text, extractor):
+        return
+
+    row_label_headers = [clean_text(item) for item in extractor.get("row_label_headers", [])]
+    column_mappings = extractor.get("column_mappings", {}) or {}
+    row_mappings = extractor.get("row_mappings", {}) or {}
+
+    for table in tables:
+        headers = table.get("headers", [])
+
+        if not headers:
+            continue
+
+        normalized_headers = [clean_text(header) for header in headers]
+
+        label_col_index = 0
+
+        for idx, header in enumerate(normalized_headers):
+            if header in row_label_headers:
+                label_col_index = idx
+                break
+
+        value_columns = {}
+
+        for idx, header in enumerate(headers):
+            value_type = get_mapped_column_type(header, column_mappings)
+            if value_type:
+                value_columns[idx] = value_type
+
+        if not value_columns:
+            continue
+
+        for row in table.get("rows", []):
+            cells = row.get("cells", [])
+
+            if label_col_index >= len(cells):
+                continue
+
+            row_label = cells[label_col_index]
+            domain = get_row_domain(row_label, row_mappings)
+
+            if not domain:
+                continue
+
+            for idx, value_type in value_columns.items():
+                if idx >= len(cells):
+                    continue
+
+                value = cells[idx]
+
+                if not is_numeric_cell(value):
+                    continue
+
+                assign_table_fields(
+                    validated=validated,
+                    domain=domain,
+                    value_type=value_type,
+                    value=value,
+                    extractor=extractor,
+                )
+
+
+TABLE_EXTRACTOR_HANDLERS = {
+    "table_fields": apply_table_fields_extractor,
+}
+
+
+def apply_table_extractors(validated, note_text, vocabulary):
+    tables = parse_generic_tables(note_text, vocabulary)
+
+    if not tables:
+        return
+
+    for extractor_name, extractor in (vocabulary.get("table_extractors") or {}).items():
+        extractor_type = extractor.get("type")
+        handler = TABLE_EXTRACTOR_HANDLERS.get(extractor_type)
+
+        if not handler:
+            logging.warning(
+                "Unknown table extractor type '%s' for table extractor '%s'.",
+                extractor_type,
+                extractor_name,
+            )
+            continue
+
+        handler(validated, note_text, tables, extractor, vocabulary)
+
+
+def get_conversion_table(conversion_name, value_type, vocabulary):
+    conversions = vocabulary.get("conversions", {}) or {}
+    conversion_group = conversions.get(conversion_name, {}) or {}
+    table = conversion_group.get(value_type)
+
+    if not table:
+        return None
+
+    if "use_ranges_from" in table:
+        table = conversion_group.get(table.get("use_ranges_from"))
+
+    return table
+
+
+def classify_by_ranges(value, conversion_name, value_type, vocabulary):
+    if value in [None, "", "not_listed"]:
+        return ""
+
+    try:
+        numeric_value = float(str(value).strip())
+    except ValueError:
+        return ""
+
+    table = get_conversion_table(conversion_name, value_type, vocabulary)
+
+    if not table:
+        return ""
+
+    for row in table.get("ranges", []) or []:
+        min_value = row.get("min")
+        max_value = row.get("max")
+        label = row.get("label")
+
+        lower_ok = True if min_value is None else numeric_value >= float(min_value)
+        upper_ok = True if max_value is None else numeric_value <= float(max_value)
+
+        if lower_ok and upper_ok:
+            return label or ""
+
+    return ""
+
+
+def apply_derived_fields(validated, vocabulary):
+    for rule_name, rule in (vocabulary.get("derived_fields") or {}).items():
+        rule_type = rule.get("type")
+
+        if rule_type != "range_classification":
+            logging.warning(
+                "Unknown derived field type '%s' for derived field rule '%s'.",
+                rule_type,
+                rule_name,
+            )
+            continue
+
+        value_suffix = rule.get("value_suffix", "_score_value")
+        type_suffix = rule.get("type_suffix", "_score_type")
+        output_suffix = rule.get("output_suffix", "_descriptive_classification")
+        source_suffix = rule.get("source_suffix", "_classification_source")
+        conversion_name = rule.get("conversion")
+        source = rule.get("source", "")
+
+        for value_field in list(validated.keys()):
+            if not value_field.endswith(value_suffix):
+                continue
+
+            prefix = value_field[: -len(value_suffix)]
+            type_field = f"{prefix}{type_suffix}"
+            output_field = f"{prefix}{output_suffix}"
+            source_field = f"{prefix}{source_suffix}"
+
+            if type_field not in validated or output_field not in validated:
+                continue
+
+            value = validated.get(value_field)
+            value_type = validated.get(type_field)
+
+            classification = classify_by_ranges(
+                value=value,
+                conversion_name=conversion_name,
+                value_type=value_type,
+                vocabulary=vocabulary,
+            )
+
+            validated[output_field] = classification
+
+            if source_field in validated:
+                validated[source_field] = source if classification else ""
+
+
+def repair_derived_fields_without_values(validated, vocabulary):
+    for rule in (vocabulary.get("derived_fields") or {}).values():
+        if rule.get("type") != "range_classification":
+            continue
+
+        value_suffix = rule.get("value_suffix", "_score_value")
+        type_suffix = rule.get("type_suffix", "_score_type")
+        output_suffix = rule.get("output_suffix", "_descriptive_classification")
+        source_suffix = rule.get("source_suffix", "_classification_source")
+
+        for value_field in list(validated.keys()):
+            if not value_field.endswith(value_suffix):
+                continue
+
+            prefix = value_field[: -len(value_suffix)]
+            type_field = f"{prefix}{type_suffix}"
+            output_field = f"{prefix}{output_suffix}"
+            source_field = f"{prefix}{source_suffix}"
+
+            value = str(validated.get(value_field, "")).strip()
+            value_type = str(validated.get(type_field, "")).strip() if type_field in validated else ""
+
+            if not value or value == "not_listed" or not value_type:
+                validated[value_field] = "not_listed"
+
+                if type_field in validated:
+                    validated[type_field] = ""
+
+                if output_field in validated:
+                    validated[output_field] = ""
+
+                if source_field in validated:
+                    validated[source_field] = ""
+
+
+def set_missing_score_values_to_not_listed(validated):
+    for field_name in list(validated.keys()):
+        if field_name.endswith("_score_value"):
+            value = str(validated.get(field_name, "")).strip()
+            if not value:
+                validated[field_name] = "not_listed"
+
+
 def evidence_is_exact_or_empty(evidence, note_text):
     if not evidence:
         return True
@@ -584,6 +936,13 @@ def repair_absent_without_evidence(validated, csv_columns):
         if validated.get(column_name) == "absent" and not validated.get(evidence_column):
             validated[column_name] = "not_listed"
             validated[evidence_column] = []
+
+
+def initialize_validated(csv_columns):
+    if isinstance(csv_columns, dict):
+        return dict(csv_columns)
+
+    return {column_name: "" for column_name in csv_columns}
 
 
 def normalize_initial_values(validated, csv_columns, extraction, settings, vocabulary, note_id):
@@ -657,7 +1016,7 @@ def validate_extraction(
     if not isinstance(extraction, dict):
         raise ValueError("Extraction output must be a JSON object.")
 
-    validated = dict(csv_columns)
+    validated = initialize_validated(csv_columns)
 
     normalize_initial_values(
         validated=validated,
@@ -669,9 +1028,14 @@ def validate_extraction(
     )
 
     apply_extractors(validated, note_text, vocabulary, settings)
+    apply_table_extractors(validated, note_text, vocabulary)
+    apply_derived_fields(validated, vocabulary)
+    repair_derived_fields_without_values(validated, vocabulary)
+    set_missing_score_values_to_not_listed(validated)
+
     repair_non_exact_evidence(validated, note_text)
     repair_absent_without_evidence(validated, csv_columns)
     blank_not_listed_evidence(validated, csv_columns)
-    log_blank_fields(validated, note_id)
+    # log_blank_fields(validated, note_id) # for debugging only
 
     return validated
